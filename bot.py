@@ -2038,13 +2038,12 @@ async def draw(ctx: commands.Context):
     ]
 
 # ★ 1% 機率抽彩蛋簽
-if random.random() < 0.01:
-    choice = random.choice(secrets)
-else:
-    choice = random.choice(fortunes)
+    if random.random() < 0.01:
+        choice = random.choice(secrets)
+    else:
+        choice = random.choice(fortunes)
 
-
-await ctx.send(f"{ctx.author.mention} 抽到的是：{choice} ")
+    await ctx.send(f"{ctx.author.mention} 抽到的是：{choice}")
 
 
 async def send_message_for_today(channel: nextcord.TextChannel) -> bool:
