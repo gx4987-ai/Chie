@@ -1,0 +1,8 @@
+nextcord
+python-dotenv
+matplotlib
+Pillow
+
+
+
+
