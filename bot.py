@@ -887,20 +887,6 @@ async def on_message(message):
             if await handle_greeting_if_any(message):
                 responded = True
 
-        # ----------------------------------------------
-        # (4) 每日訊息（你原本的模組）
-        # ----------------------------------------------
-        if not responded:
-            if await handle_today_message_if_any(message):
-                responded = True
-
-        # ----------------------------------------------
-        # (5) 賭博系統（莊家 / 閒家）
-        # ----------------------------------------------
-        if not responded:
-            if await handle_gambling_if_any(message):
-                responded = True
-
     # ==================================================
     # 2) 讓 bot 的指令正常運作
     # ==================================================
