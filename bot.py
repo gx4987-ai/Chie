@@ -264,6 +264,32 @@ EMOTION_KEYWORD_REPLIES: Dict[str, str] = {
     "拆家": "能不能別拆了天( ",
 }
 
+GLOBAL_KEYWORD_COOLDOWN = 900  # 全域冷卻秒數
+LAST_GLOBAL_TRIGGER = float = 0.0     # 全域上次觸發時間
+
+async def handle_emotion_keywords(message):
+    global LAST_GLOBAL_TRIGGER
+
+    content = message.content
+    now = time.time()
+
+    # ---------- 0. 檢查全域冷卻 ----------
+    if now - LAST_GLOBAL_TRIGGER < GLOBAL_KEYWORD_COOLDOWN:
+        return False  # 全域冷卻中 → 不回覆任何敏感詞
+
+    # ---------- 1. 遍歷所有 keyword ----------
+    for keyword, reply_text in EMOTION_KEYWORD_REPLIES.items():
+
+        if keyword not in content:
+            continue
+
+        # 找到 keyword → 更新全域冷卻
+        LAST_GLOBAL_TRIGGER = now
+
+        await message.reply(reply_text)
+        return True
+
+    return False
 
 
 
