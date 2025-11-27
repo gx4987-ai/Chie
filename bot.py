@@ -846,7 +846,6 @@ async def on_message(message):
     save_json("user_message_counts.json", counts)
 
     # === 情緒關鍵字回覆（全域冷卻） ===
-    await try_emotion_keyword_reply(message)
     await bot.process_commands(message)
     # 統計訊息
     update_message_stats(message)
@@ -873,11 +872,17 @@ async def on_message(message):
         if await handle_greeting_if_any(message):
             responded = True
 
-        # 2) 關鍵字情緒回覆
-        if not responded:
-            for keyword, reply_text in EMOTION_KEYWORD_REPLIES.items():
-                if is_keyword_triggered(keyword, content):
-                    user_key = (keyword, message.author.id)
+        # 2) 關鍵字情緒回覆（整合全域冷卻）
+    if not responded:
+        now_ts = int(time.time())
+
+    # 全域冷卻
+        global LAST_GLOBAL_TRIGGER
+        if now_ts - LAST_GLOBAL_TRIGGER < GLOBAL_KEYWORD_COOLDOWN:
+            return  # 全域冷卻內直接不回覆
+
+        for keyword, reply_text in EMOTION_KEYWORD_REPLIES.items():
+
 
                     # 🌙 深夜模式
                     if is_night_mode():
