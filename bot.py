@@ -190,6 +190,21 @@ LAST_EMOTION_REPLY_TIME: Dict[int, float] = {}  # {user_id: timestamp}
 EMOTION_GLOBAL_COOLDOWN = 150  # 秒
 emotion_global_cooldown_until = 0  # 時間戳記（冷卻結束時間）
 
+# ---------- 問候詞庫 ----------
+GOOD_MORNING_WORDS = ["早安", "早啊", "早上好", "morning"]
+GOOD_AFTERNOON_WORDS = ["午安", "午啊", "下午好", "中午好"]
+GOOD_NIGHT_WORDS = ["晚安", "晚啊", "good night", "gn"]
+
+# ---------- 安靜冷卻 ----------
+GREETING_COOLDOWN = 7200  # 2 小時
+greeting_last_trigger = {
+    "morning": 0.0,
+    "noon": 0.0,
+    "night": 0.0,
+}
+
+
+
 
 def detect_negative_emotion(text: str) -> bool:
     """簡單檢查句子裡有沒有負面關鍵詞"""
@@ -459,6 +474,12 @@ GREETING_LAST_TIME: Dict[str, float] = {
     "午安": 0.0,
     "晚安": 0.0,
 }
+
+# ---------- 問候詞庫 ----------
+GOOD_MORNING_WORDS = ["早安", "早啊", "早上好", "morning"]
+GOOD_AFTERNOON_WORDS = ["午安", "午啊", "中午好"]
+GOOD_NIGHT_WORDS = ["晚安", "晚啊", "good night", "gn"]
+
 
 
 
