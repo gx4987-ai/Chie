@@ -195,7 +195,12 @@ GOOD_MORNING_WORDS = ["早安", "早啊", "早上好", "morning"]
 GOOD_AFTERNOON_WORDS = ["午安", "午啊", "下午好", "中午好"]
 GOOD_NIGHT_WORDS = ["晚安", "晚啊", "good night", "gn"]
 
-# ---------- 安靜冷卻 ----------
+# ---------- 問候詞庫 ----------
+GOOD_MORNING_WORDS = ["早安", "早啊", "早上好", "morning"]
+GOOD_AFTERNOON_WORDS = ["午安", "午啊", "中午好"]
+GOOD_NIGHT_WORDS = ["晚安", "晚啊", "good night", "gn"]
+
+# ---------- 冷卻 ----------
 GREETING_COOLDOWN = 7200  # 2 小時
 greeting_last_trigger = {
     "morning": 0.0,
@@ -203,59 +208,38 @@ greeting_last_trigger = {
     "night": 0.0,
 }
 
-@bot.event
-async def on_message(message):
-
-    # 先忽略機器人訊息（避免重複觸發）
+async def handle_greeting_if_any(message):
     if message.author.bot:
         return
 
-    # 你的邏輯：
-    await handle_greeting_if_any(message)
-    await try_gambling_if_any(message)
-    await send_daily_if_any(message)
-
-    # 讓指令正常運作
-    await bot.process_commands(message)
-
-
-
-def detect_negative_emotion(text: str) -> bool:
-    """簡單檢查句子裡有沒有負面關鍵詞"""
-    lower = text.lower()
-    return any(kw.lower() in lower for kw in NEGATIVE_KEYWORDS)
-
-
-
-
-async def try_greeting_reply(message: nextcord.Message):
-    """處理早安/午安/晚安的安靜冷卻模式"""
-    global greeting_last_trigger
-
-
-
     now = time.time()
-    content = message.content
+    content = message.content.lower()
 
-    # --- 早安 ---
+    # 早安
     if any(word in content for word in GOOD_MORNING_WORDS):
-        if now - greeting_last_trigger["morning"] >= GREETING_COOLDOWN:
-            greeting_last_trigger["morning"] = now
-            await message.reply("早安，你今天還好吧( ")
-        return  # 冷卻中 → 完全安靜，不回覆
+        key = "morning"
 
-    # --- 午安 ---
-    if any(word in content for word in GOOD_AFTERNOON_WORDS):
-        if now - greeting_last_trigger["noon"] >= GREETING_COOLDOWN:
-            greeting_last_trigger["noon"] = now
-            await message.reply("午安，記得稍微休息一下( ")
+        if now - greeting_last_trigger[key] >= GREETING_COOLDOWN:
+            greeting_last_trigger[key] = now
+            await message.reply("早安，你今天還好吧")
         return
+    
+    # 午安
+    if any(word in content for word in GOOD_AFTERNOON_WORDS):
+        key = "noon"
 
-    # --- 晚安 ---
+        if now - greeting_last_trigger[key] >= GREETING_COOLDOWN:
+            greeting_last_trigger[key] = now
+            await message.reply("午安，記得喝水")
+        return
+    
+    # 晚安
     if any(word in content for word in GOOD_NIGHT_WORDS):
-        if now - greeting_last_trigger["night"] >= GREETING_COOLDOWN:
-            greeting_last_trigger["night"] = now
-            await message.reply("晚安，好好睡一下會比較舒服( ")
+        key = "night"
+
+        if now - greeting_last_trigger[key] >= GREETING_COOLDOWN:
+            greeting_last_trigger[key] = now
+            await message.reply("晚安，好好睡")
         return
 
 
@@ -830,9 +814,6 @@ async def on_message(message):
     counts = load_json("user_message_counts.json")
     counts[user_id] = counts.get(user_id, 0) + 1
     save_json("user_message_counts.json", counts)
-
-        # === 自動問候（早安/午安/晚安） ===
-    await try_greeting_reply(message)
 
     # === 情緒關鍵字回覆（全域冷卻） ===
     await try_emotion_keyword_reply(message)
