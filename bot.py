@@ -169,6 +169,12 @@ NEGATIVE_KEYWORDS = [
     "好難過", "低落", "好沮喪", "好崩潰",
 ]
 
+def detect_negative_emotion(text: str) -> bool:
+    """簡單檢查句子裡有沒有負面關鍵詞"""
+    lower = text.lower()
+    return any(kw.lower() in lower for kw in NEGATIVE_KEYWORDS)
+
+
 # 情緒安慰的隨機句子池（千惠語氣）
 EMOTION_RESPONSES = [
     "你這樣講的時候，感覺真的有點撐過頭了…我在，你可以慢慢說，不用一次把所有事講完( ",
