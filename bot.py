@@ -341,26 +341,6 @@ STORY_PLAYERS: Dict[int, list[int]] = {}
 STORY_SENTENCES: Dict[int, Dict[int, str]] = {}
 STORY_CURRENT_INDEX: Dict[int, int] = {}
 
-async def try_emotion_keyword_reply(message: nextcord.Message):
-    global emotion_global_cooldown_until
-
-    now = time.time()
-    content = message.content
-
-    # ‼ 全域冷卻中 → 直接跳出
-    if now < emotion_global_cooldown_until:
-        return
-
-    # 尋找關鍵字
-    for keyword, reply_text in EMOTION_KEYWORD_REPLIES.items():
-        if keyword in content:
-            # 觸發回覆
-            await message.reply(reply_text)
-
-            # 設置全域冷卻
-            emotion_global_cooldown_until = now + EMOTION_GLOBAL_COOLDOWN
-            return  # 成功回覆後直接結束
-
 
 # ============================================
 # 千惠模組包：記憶系統 / 生活化數據 / 反應包 / 早午晚安安靜冷卻 / 每日任務
@@ -508,34 +488,94 @@ GOOD_MORNING_WORDS = ["早安", "早啊", "早上好", "morning"]
 GOOD_AFTERNOON_WORDS = ["午安", "午啊", "中午好"]
 GOOD_NIGHT_WORDS = ["晚安", "晚啊", "good night", "gn"]
 
+# ============================================
+# ❤️ 情緒模組 v3（全域 CD + 個人 CD + 封印 + 深夜模式）
+# ============================================
 
+# 🔥 全域冷卻（所有關鍵字共用）
+EMOTION_GLOBAL_COOLDOWN = 150  # 秒
+emotion_global_cooldown_until = 0.0
 
-
-async def handle_greeting_if_any(message: nextcord.Message) -> bool:
+async def handle_emotion_keywords(message, now_ts):
     """
-    專門處理早安/午安/晚安：
-    - 第一個人觸發 → 正常回覆
-    - 之後 2 小時內 → 完全安靜，不回覆、不提示冷卻
-    回傳：有沒有真的回覆。
+    處理：
+    - 敏感字關鍵字回覆
+    - 封印（反濫用）
+    - 個人提示冷卻
+    - 全域冷卻
+    - 深夜模式
     """
+
+    global emotion_global_cooldown_until
+
     content = message.content
-    now_ts = datetime.now().timestamp()
+    user_id = message.author.id
 
-    for kw, base_reply in EMOTION_KEYWORD_REPLIES.items():
-        if is_keyword_triggered(kw, content):
-            last_ts = GREETING_LAST_TIME.get(kw, 0.0)
-            if now_ts - last_ts >= GREETING_COOLDOWN:
-                reply_text = base_reply
-                # 深夜版語氣
-                if is_night_mode():
-                    reply_text = random.choice(NIGHT_MODE_REPLIES["neutral"])
-                await message.channel.send(f"{message.author.mention} {reply_text}")
-                GREETING_LAST_TIME[kw] = now_ts
-                return True
-            else:
-                # 在冷卻中 → 什麼都不說
-                return False
+    # 🌍 0) 全域冷卻
+    if now_ts < emotion_global_cooldown_until:
+        return False
+
+    # 🔍 1) 搜尋所有關鍵字
+    for keyword, reply_text in EMOTION_KEYWORD_REPLIES.items():
+
+        if not is_keyword_triggered(keyword, content):
+            continue
+
+        user_key = (keyword, user_id)
+
+        # 🌙 2) 深夜模式切換內容
+        if is_night_mode() and keyword in ["好累", "好煩", "壓力好大", "不想動", "不想念書"]:
+            reply_text = random.choice(NIGHT_MODE_REPLIES["tired"])
+
+        # 🚫 3) 檢查是否被封印
+        mute_until = MUTE_UNTIL.get(user_key, 0)
+        if now_ts < mute_until:
+            return True  # 已經封印，不回覆
+
+        # 🧊 4) 單字冷卻（個別 keyword 冷卻）
+        last_time = LAST_REPLY_TIME.get(keyword, 0)
+        elapsed = now_ts - last_time
+
+        if elapsed < KEYWORD_COOLDOWN:
+            # 單字冷卻 → 檢查提示冷卻
+            last_hint = LAST_HINT_TIME.get(user_key, 0)
+
+            if now_ts - last_hint >= HINT_COOLDOWN_PER_USER:
+                LAST_HINT_TIME[user_key] = now_ts
+
+                # 計算濫用次數
+                count = ABUSE_HINT_COUNT.get(user_key, 0) + 1
+                ABUSE_HINT_COUNT[user_key] = count
+
+                # 尚未到封印門檻 → 顯示剩餘冷卻
+                if count < ABUSE_MAX_HINTS:
+                    remain = int(KEYWORD_COOLDOWN - elapsed)
+                    await message.channel.send(
+                        f"{message.author.mention} 這個關鍵字還在冷卻中，大概 {remain} 秒後再試比較好( "
+                    )
+                else:
+                    # 超過次數 → 直接封印
+                    MUTE_UNTIL[user_key] = now_ts + ABUSE_MUTE_SECONDS
+                    await message.channel.send(
+                        f"{message.author.mention} 你這樣有點太頻繁了，不然先停一下吧( "
+                    )
+            return True
+
+        # 🎉 5) 正常回覆
+        await message.channel.send(f"{message.author.mention} {reply_text}")
+
+        # 更新個別冷卻
+        LAST_REPLY_TIME[keyword] = now_ts
+        ABUSE_HINT_COUNT[user_key] = 0
+
+        # 🔥 6) 設定全域冷卻！（重點）
+        emotion_global_cooldown_until = now_ts + EMOTION_GLOBAL_COOLDOWN
+
+        return True
+
     return False
+
+
 AVATAR_SIZE = 64
 AVATAR_PADDING = 16   # 頭貼之間的間距
 COLUMNS = 5           # 一排 5 個頭貼
@@ -806,154 +846,66 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
+
+    # ==================================================
+    # 0) 忽略機器人自己
+    # ==================================================
     if message.author.bot:
         return
 
-    # 🕒 每次訊息的時間戳（冷卻系統大量使用）
     now_ts = int(time.time())
-    now = datetime.now(TAIPEI_TZ)
-
-    # ✉️ 訊息內容
     content = message.content
+    channel_id = message.channel.id
+    responded = False
 
-    # === 檔案 ===
-    today_file = "user_message_today.json"
-    week_file = "user_message_week.json"
-    month_file = "user_message_month.json"
+    # ==================================================
+    # 1) 侷限互動功能只在聊天頻道 & 每日頻道（你原本的設定）
+    # ==================================================
+    if channel_id in (CHAT_CHANNEL_ID, DAILY_CHANNEL_ID):
 
-    # === 讀取資料 ===
-    today = load_json(today_file)
-    week = load_json(week_file)
-    month = load_json(month_file)
+        # ----------------------------------------------
+        # (1) 深夜模式檢查（你原本的結構）
+        # ----------------------------------------------
+        if is_night_mode():
+            if detect_negative_emotion(content):
+                await message.channel.send(
+                    random.choice(NIGHT_MODE_REPLIES["tired"])
+                )
+                return
 
-    user_id = str(message.author.id)
-
-    # 今日
-    today[user_id] = today.get(user_id, 0) + 1
-    save_json(today_file, today)
-
-    # 本週
-    week[user_id] = week.get(user_id, 0) + 1
-    save_json(week_file, week)
-
-    # 本月
-    month[user_id] = month.get(user_id, 0) + 1
-    save_json(month_file, month)
-
-    # === 更新總計（排行榜 Top 使用） ===
-    counts = load_json("user_message_counts.json")
-    counts[user_id] = counts.get(user_id, 0) + 1
-    save_json("user_message_counts.json", counts)
-
-    # === 情緒關鍵字回覆（全域冷卻） ===
-    await bot.process_commands(message)
-    # 統計訊息
-    update_message_stats(message)
-
-    # -- 今日 tag 次數 --
-    if message.mentions:
-        tags = MEMORY.setdefault("today_tags", {})
-        for user in message.mentions:
-            uid = str(user.id)
-            tags[uid] = tags.get(uid, 0) + 1
-
-    # -- 記錄叫「千惠」 --
-    if "千惠" in content:
-        calls = MEMORY.setdefault("today_chihui", {})
-        uid = str(message.author.id)
-        calls[uid] = calls.get(uid, 0) + 1
-
-    responded = False  # 這次訊息有沒有已經回覆過
-
-    # === 互動功能：僅限聊天頻道 + 每日頻道 ===
-    if message.channel.id in (CHAT_CHANNEL_ID, DAILY_CHANNEL_ID):
-
-        # 1) 早安/午安/晚安
-        if await handle_greeting_if_any(message):
-            responded = True
-
-        # 2) 關鍵字情緒回覆（整合全域冷卻）
-    if not responded:
-        now_ts = int(time.time())
-
-    # 全域冷卻
-        global LAST_GLOBAL_TRIGGER
-        if now_ts - LAST_GLOBAL_TRIGGER < GLOBAL_KEYWORD_COOLDOWN:
-            return  # 全域冷卻內直接不回覆
-
-        for keyword, reply_text in EMOTION_KEYWORD_REPLIES.items():
-
-
-                    # 🌙 深夜模式
-                    if is_night_mode():
-                        if keyword in ["好累", "好煩", "壓力好大", "不想動", "不想念書"]:
-                            reply_text = random.choice(NIGHT_MODE_REPLIES["tired"])
-
-                    # 1️⃣ 被封印？
-                    mute_until = MUTE_UNTIL.get(user_key, 0)
-                    if now_ts < mute_until:
-                        break
-
-                    # 2️⃣ 全局冷卻
-                    last_time = LAST_REPLY_TIME.get(keyword, 0)
-                    elapsed = now_ts - last_time
-
-                    if elapsed < KEYWORD_COOLDOWN:
-                        last_hint = LAST_HINT_TIME.get(user_key, 0)
-                        if now_ts - last_hint >= HINT_COOLDOWN_PER_USER:
-                            LAST_HINT_TIME[user_key] = now_ts
-
-                            count = ABUSE_HINT_COUNT.get(user_key, 0) + 1
-                            ABUSE_HINT_COUNT[user_key] = count
-
-                            if count < ABUSE_MAX_HINTS:
-                                remain = int(KEYWORD_COOLDOWN - elapsed)
-                                await message.channel.send(
-                                    f"{message.author.mention} 這個關鍵字還在冷卻中，大概 {remain} 秒後再試比較好( "
-                                )
-                            else:
-                                MUTE_UNTIL[user_key] = now_ts + ABUSE_MUTE_SECONDS
-                                await message.channel.send(
-                                    f"{message.author.mention} 你這樣有點太頻繁了，不然先停一下吧( "
-                                )
-                        break
-
-                    # 3️⃣ 正常回覆
-                    await message.channel.send(f"{message.author.mention} {reply_text}")
-                    LAST_REPLY_TIME[keyword] = now_ts
-                    ABUSE_HINT_COUNT[user_key] = 0
-                    responded = True
-                    break
-
-        # 3) 情緒 AI 偵測
-        if (not responded) and detect_negative_emotion(content):
-            last_emote = LAST_EMOTION_REPLY_TIME.get(message.author.id, 0)
-            if now_ts - last_emote >= EMOTION_COOLDOWN_PER_USER:
-
-                if is_night_mode():
-                    reply = random.choice(NIGHT_MODE_REPLIES["comfort"])
-                else:
-                    reply = random.choice(EMOTION_RESPONSES)
-
-                notes = get_user_notes(message.author.id)
-                extra = ""
-                if notes:
-                    last_note = notes[-1]
-                    extra = f"\n還記得你之前跟我說過：「{last_note}」"
-
-                await message.channel.send(f"{message.author.mention} {reply}{extra}")
-                LAST_EMOTION_REPLY_TIME[message.author.id] = now_ts
-                responded = True
-
-        # 4) 可愛反應包
+        # ----------------------------------------------
+        # (2) 情緒關鍵字系統（🔥 全域 CD + 個人 CD + 封印）
+        # ----------------------------------------------
         if not responded:
-            reacted = await handle_reaction_reply(message, now_ts)
-            if reacted:
+            if await handle_emotion_keywords(message, now_ts):
                 responded = True
 
-    save_memory()
+        # ----------------------------------------------
+        # (3) 問候系統（早安 / 午安 / 晚安）
+        # ----------------------------------------------
+        if not responded:
+            if await handle_greeting_if_any(message):
+                responded = True
 
+        # ----------------------------------------------
+        # (4) 每日訊息（你原本的模組）
+        # ----------------------------------------------
+        if not responded:
+            if await handle_today_message_if_any(message):
+                responded = True
+
+        # ----------------------------------------------
+        # (5) 賭博系統（莊家 / 閒家）
+        # ----------------------------------------------
+        if not responded:
+            if await handle_gambling_if_any(message):
+                responded = True
+
+    # ==================================================
+    # 2) 讓 bot 的指令正常運作
+    # ==================================================
     await bot.process_commands(message)
+
 
 
 async def resolve_user_info(bot, guild, user_id: int):
