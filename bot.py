@@ -203,6 +203,20 @@ greeting_last_trigger = {
     "night": 0.0,
 }
 
+@bot.event
+async def on_message(message):
+
+    # 先忽略機器人訊息（避免重複觸發）
+    if message.author.bot:
+        return
+
+    # 你的邏輯：
+    await handle_greeting_if_any(message)
+    await try_gambling_if_any(message)
+    await send_daily_if_any(message)
+
+    # 讓指令正常運作
+    await bot.process_commands(message)
 
 
 
