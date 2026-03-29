@@ -367,7 +367,7 @@ EXPEDITION_GLOBAL_COOLDOWN = 90  # 1.5 分鐘
 LAST_EXPEDITION_TIME: float = 0.0  # 上一次任何人使用遠征的時間戳
 
 # 個人 CD（每個人自己的節奏，避免同一個人狂刷）
-EXPEDITION_USER_COOLDOWN = 180  # 180 秒，可以自己改
+EXPEDITION_USER_COOLDOWN = 90  # 180 秒，可以自己改
 LAST_EXPEDITION_TIME_USER: Dict[int, float] = {}  # {user_id: timestamp}
 
 # 使用者累計傷害統計表 {user_id: total_damage}
