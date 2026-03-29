@@ -359,15 +359,15 @@ LAST_SENT_FILE = "last_sent_date.txt"  # 存在專案資料夾中的小檔案
 LAST_SENT_DATE: Optional[str] = None   # 會存 "YYYY-MM-DD"
 
 # ===== 遠征系統設定 =====
-BOSS_MAX_HP = 9_999_999_999
+BOSS_MAX_HP = 999_999_999_999
 boss_current_hp = BOSS_MAX_HP
 
 # 廣域 CD（整個伺服器共用）
-EXPEDITION_GLOBAL_COOLDOWN = 90  # 1.5 分鐘
+EXPEDITION_GLOBAL_COOLDOWN = 30  # 1.5 分鐘
 LAST_EXPEDITION_TIME: float = 0.0  # 上一次任何人使用遠征的時間戳
 
 # 個人 CD（每個人自己的節奏，避免同一個人狂刷）
-EXPEDITION_USER_COOLDOWN = 90  # 180 秒，可以自己改
+EXPEDITION_USER_COOLDOWN = 30  # 180 秒，可以自己改
 LAST_EXPEDITION_TIME_USER: Dict[int, float] = {}  # {user_id: timestamp}
 
 # 使用者累計傷害統計表 {user_id: total_damage}
