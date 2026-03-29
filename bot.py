@@ -359,7 +359,7 @@ LAST_SENT_FILE = "last_sent_date.txt"  # 存在專案資料夾中的小檔案
 LAST_SENT_DATE: Optional[str] = None   # 會存 "YYYY-MM-DD"
 
 # ===== 遠征系統設定 =====
-BOSS_MAX_HP = 999_999_999_999
+BOSS_MAX_HP = 49_999_999_999
 boss_current_hp = BOSS_MAX_HP
 
 # 廣域 CD（整個伺服器共用）
@@ -1260,7 +1260,7 @@ async def expedition(ctx: commands.Context, *, skill: str = None):
     LAST_EXPEDITION_TIME = now
     LAST_EXPEDITION_TIME_USER[user_id] = now
 
-    damage = random.randint(1, 100000)
+    damage = random.randint(1, 999999)
     boss_current_hp = max(0, boss_current_hp - damage)
 
     # 累計傷害記錄
